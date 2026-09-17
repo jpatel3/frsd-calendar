@@ -2,7 +2,7 @@
 export const API_BASE = 'https://thrillshare-cmsv2.services.thrillshare.com/api/v4/o';
 export const SITE_BASE = 'https://www.frsd.us/o';
 export const PDF_URL = 'https://files-backend.assets.thrillshare.com/documents/asset/uploaded_file/5380/Fr/4e4d5051-45e3-48c5-b450-da0e963cc770/2026-2027-District-Calendar-FINAL.pdf?disposition=inline';
-export const REPO_URL = 'https://github.com/<user>/frsd-calendar'; // set after creating the repo
+export const REPO_URL = 'https://github.com/jpatel3/frsd-calendar';
 
 export const SCHOOLS = [
   { key: 'frsd', name: 'District', short: 'FRSD', grades: '', org: 27053, section: 457011, slug: 'frs', color: '#4b5563', always: true },

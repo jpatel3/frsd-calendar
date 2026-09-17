@@ -5,7 +5,7 @@ One page that shows **today** or **this week** for any set of Flemington-Raritan
 "A Day"), that school's events, and district-wide closures, early dismissals and
 delayed openings.
 
-Live: https://<user>.github.io/frsd-calendar/
+Live: https://jpatel3.github.io/frsd-calendar/
 
 ## Use it
 
