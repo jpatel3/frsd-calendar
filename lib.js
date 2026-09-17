@@ -96,3 +96,13 @@ export function buildHash({ schools, view, date }, today) {
 export function buildEventsUrl(apiBase, school, startDate, endDate, page = 1) {
   return `${apiBase}/${school.org}/cms/events?section_ids=${school.section}&locale=en&start_date=${startDate}&end_date=${endDate}&page_no=${page}`;
 }
+
+// ---------- dedupe (feeds sometimes carry the same event twice) ----------
+export function dedupe(list) {
+  const seen = new Set();
+  return list.filter(e => {
+    const k = `${e.school}|${e.date}|${e.title.toLowerCase()}|${e.startTime || ''}`;
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+}

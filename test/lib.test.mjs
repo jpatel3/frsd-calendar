@@ -146,3 +146,11 @@ test('buildEventsUrl', () => {
     'https://x/api/v4/o/27225/cms/events?section_ids=460569&locale=en&start_date=2026-09-14&end_date=2026-09-20&page_no=1');
   assert.ok(buildEventsUrl('https://x/api/v4/o', s, '2026-09-14', '2026-09-20', 3).endsWith('page_no=3'));
 });
+
+// ---- dedupe ----
+import { dedupe } from '../lib.js';
+test('dedupe drops same school+date+title+time, keeps the rest', () => {
+  const mk = (o) => ({ id: 0, school: 'ch', title: 'CH-PICTURE DAY', date: '2026-09-23', allDay: true, startTime: null, endTime: null, venue: '', kind: 'event', dayLabel: null, ...o });
+  const out = dedupe([mk({ id: 1 }), mk({ id: 2 }), mk({ id: 3, date: '2026-09-24' }), mk({ id: 4, school: 'rfis' }), mk({ id: 5, allDay: false, startTime: '09:00' })]);
+  assert.deepEqual(out.map(e => e.id), [1, 3, 4, 5]);
+});

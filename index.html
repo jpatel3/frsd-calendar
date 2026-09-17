@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FRSD Family Calendar</title>
+<meta name="description" content="Combined today / week view of Flemington-Raritan school events and rotation days for the schools you pick.">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <h1>FRSD Family Calendar</h1>
+    <p class="tagline">Pick your kids' schools. See today or this week, together.</p>
+  </div>
+  <div id="chips" class="chips" role="group" aria-label="Schools"></div>
+  <div class="controls">
+    <div class="seg" role="group" aria-label="View">
+      <button id="view-today" type="button" aria-pressed="true">Today</button>
+      <button id="view-week" type="button" aria-pressed="false">Week</button>
+    </div>
+    <div class="nav">
+      <button id="nav-prev" type="button" aria-label="Previous">‹</button>
+      <button id="nav-today" type="button">Today</button>
+      <button id="nav-next" type="button" aria-label="Next">›</button>
+    </div>
+    <div id="range-label" class="range" aria-live="polite"></div>
+  </div>
+</header>
+<main id="main" aria-live="polite"></main>
+<footer class="foot">
+  <span id="status"></span>
+  <a id="pdf-link" href="#" target="_blank" rel="noopener">Official district calendar (PDF)</a>
+  <a id="repo-link" href="#" target="_blank" rel="noopener">Source on GitHub</a>
+</footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>
