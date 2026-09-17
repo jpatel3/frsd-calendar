@@ -18,7 +18,7 @@ export function pruneCache() {
   for (const k of store.keys()) {
     if (!k.startsWith(P + 'cache.') && !k.startsWith(P + 'year.') && !k.startsWith(P + 'news.')) continue;
     const v = store.get(k);
-    if (!v || !v.fetchedAt || v.fetchedAt < cutoff) store.remove(k);
+    if (!isValidEntry(v) || v.fetchedAt < cutoff) store.remove(k);
   }
 }
 
@@ -40,8 +40,11 @@ async function fetchAllPages(school, start, end) {
 
 // Generic "fresh cache, else fetch, else stale cache" helper.
 // Returns { data, fromCache, failed, fetchedAt }.
+const isValidEntry = h => !!h && typeof h.fetchedAt === 'number' && h.data != null;
+
 async function cached(key, ttl, fetcher) {
-  const hit = store.get(key);
+  let hit = store.get(key);
+  if (hit && !isValidEntry(hit)) { store.remove(key); hit = null; } // e.g. an entry written by an older version
   if (hit && Date.now() - hit.fetchedAt < ttl) return { data: hit.data, fromCache: false, failed: false, fetchedAt: hit.fetchedAt };
   try {
     const data = await fetcher();
