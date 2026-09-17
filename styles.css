@@ -58,6 +58,8 @@ main { max-width: 1200px; margin: 16px auto 0; }
 .card h2 { margin: 0; font-size: 1rem; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .card h2 small { color: var(--muted); font-weight: 400; }
 .day-badge { display: inline-block; margin: 8px 0 6px; padding: 6px 14px; border-radius: 10px; background: var(--c); color: #fff; font-size: 1.5rem; font-weight: 800; letter-spacing: .5px; }
+.flag { display: inline-block; margin-left: 8px; padding: 3px 9px; border-radius: 8px; color: #fff; font-size: .8rem; font-weight: 700; vertical-align: middle; white-space: nowrap; }
+.row .who .flag { margin-left: 2px; padding: 1px 7px; font-size: .75rem; }
 .day-badge.none { background: transparent; color: var(--muted); border: 1px dashed var(--line); font-size: .95rem; font-weight: 500; }
 .events { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .ev { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: baseline; background: none; }
@@ -85,9 +87,9 @@ main { max-width: 1200px; margin: 16px auto 0; }
 .col h3 .wx { color: var(--muted); font-weight: 500; font-size: .85rem; flex-basis: 100%; }
 .col .banner-item { padding: 6px 10px; font-size: .85rem; font-weight: 600; margin-bottom: 6px; }
 .row { --c: var(--accent); border-left: 3px solid var(--c); padding: 4px 0 4px 8px; margin: 6px 0; min-width: 0; }
-.row .who { display: flex; align-items: center; gap: 6px; font-size: .8rem; color: var(--muted); }
+.row .who { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: .8rem; color: var(--muted); }
 .row .who b { color: var(--c); }
-.row .mini { display: inline-block; background: var(--c); color: #fff; border-radius: 6px; padding: 1px 7px; font-weight: 700; font-size: .85rem; }
+.row .mini { display: inline-block; background: var(--c); color: #fff; border-radius: 6px; padding: 1px 7px; font-weight: 700; font-size: .85rem; white-space: nowrap; }
 .t { font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .t time { color: var(--muted); font-size: .8rem; margin-right: 4px; }
 .col .t.district { margin-top: 6px; color: var(--muted); font-size: .85rem; }

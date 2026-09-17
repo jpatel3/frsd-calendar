@@ -198,6 +198,12 @@ async function loadNewsPanel() {
 // ---------- render ----------
 const onDate = (d, key) => events.filter(e => e.date === d && (key ? e.school === key : true)).sort(sortEvents);
 const isAlert = e => e.kind !== 'event';
+const FLAG_TEXT = { closed: '🏠 Closed', early: '⏰ Early dismissal', delayed: '🕘 Delayed opening' };
+// A school's own closed/early/delayed event for the day, shown as a chip beside its Day badge.
+function flagHtml(evs) {
+  const f = evs.find(isAlert);
+  return f ? `<span class="flag kind-${f.kind}" title="${esc(f.title)}">${FLAG_TEXT[f.kind]}</span>` : '';
+}
 
 function eventLi(ev) {
   const time = ev.allDay ? '<span></span>'
@@ -216,7 +222,7 @@ function schoolCard(s, d) {
   const evs = onDate(d, s.key);
   const day = evs.find(e => e.dayLabel);
   const rest = evs.filter(e => e !== day);
-  const badge = day ? `<div class="day-badge">${esc(day.dayLabel)}</div>` : `<div class="day-badge none">No rotation day</div>`;
+  const badge = (day ? `<div class="day-badge">${esc(day.dayLabel)}</div>` : `<div class="day-badge none">No rotation day</div>`) + flagHtml(rest);
   const list = rest.length ? `<ul class="events">${rest.map(eventLi).join('')}</ul>` : `<p class="empty">Nothing else scheduled</p>`;
   const failed = status.failed.includes(s.key)
     ? `<p class="empty">Couldn't load. <button class="retry" type="button" data-retry>Retry</button></p>` : '';
@@ -250,7 +256,7 @@ function renderWeek() {
       const day = evs.find(e => e.dayLabel); const rest = evs.filter(e => e !== day);
       const lines = rest.map(e => `<div class="t" title="${esc(e.title)}">${e.allDay ? '' : `<time>${esc(fmtTime(e.startTime))}</time>`}${esc(label(e))}</div>`).join('');
       const who = names[k] ? `${esc(names[k])} · ${esc(s.short)}` : esc(s.short);
-      return `<div class="row" style="--c:${s.color}"><div class="who"><b>${who}</b>${day ? `<span class="mini">${esc(day.dayLabel)}</span>` : ''}</div>${lines}</div>`;
+      return `<div class="row" style="--c:${s.color}"><div class="who"><b>${who}</b>${day ? `<span class="mini">${esc(day.dayLabel)}</span>` : ''}${flagHtml(rest)}</div>${lines}</div>`;
     }).join('');
     const other = onDate(d, DISTRICT.key).filter(e => !isAlert(e))
       .map(e => `<div class="t district" title="${esc(e.title)}">${esc(label(e))}</div>`).join('');
