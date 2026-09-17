@@ -154,3 +154,89 @@ test('dedupe drops same school+date+title+time, keeps the rest', () => {
   const out = dedupe([mk({ id: 1 }), mk({ id: 2 }), mk({ id: 3, date: '2026-09-24' }), mk({ id: 4, school: 'rfis' }), mk({ id: 5, allDay: false, startTime: '09:00' })]);
   assert.deepEqual(out.map(e => e.id), [1, 3, 4, 5]);
 });
+
+// ================= v2 =================
+import { emojiFor, weatherEmoji, funLine, schoolYearRange, schoolDaysBetween, nextDayOff, nextBreak,
+         cleanDistrictTitle, shareUrl } from '../lib.js';
+
+test('emojiFor: kind wins, then keywords, else empty', () => {
+  assert.equal(emojiFor('FRSD-School Closed, Yom Kippur', 'closed'), '🏠');
+  assert.equal(emojiFor('RFIS - Early Dismissal (12:40 p.m.)', 'early'), '⏰');
+  assert.equal(emojiFor('FRSD- 2 Hour Delayed Opening', 'delayed'), '🕘');
+  assert.equal(emojiFor('CH-PICTURE DAY', 'event'), '📸');
+  assert.equal(emojiFor('RFIS Book Fair', 'event'), '📚');
+  assert.equal(emojiFor('CH-NEON/BRIGHT COLORS DAY', 'event'), '🎉');
+  assert.equal(emojiFor('JPC - Back To School Night', 'event'), '🌙');
+  assert.equal(emojiFor('Board of Education Meeting', 'event'), '🏛️');
+  assert.equal(emojiFor('CH - ICE POP SOCIAL', 'event'), '🍦');
+  assert.equal(emojiFor('MAP Growth Assessment Fall Window', 'event'), '✏️');
+  assert.equal(emojiFor('RFIS Fall Husky Hangouts Begin', 'event'), '🏅');
+  assert.equal(emojiFor('Netta Alvarez - Law Guardian to visit IU', 'event'), '');
+});
+
+test('weatherEmoji maps WMO codes', () => {
+  assert.equal(weatherEmoji(0), '☀️'); assert.equal(weatherEmoji(2), '🌤️'); assert.equal(weatherEmoji(3), '☁️');
+  assert.equal(weatherEmoji(45), '🌫️'); assert.equal(weatherEmoji(53), '🌦️'); assert.equal(weatherEmoji(63), '🌧️');
+  assert.equal(weatherEmoji(73), '❄️'); assert.equal(weatherEmoji(81), '🌧️'); assert.equal(weatherEmoji(86), '🌨️');
+  assert.equal(weatherEmoji(95), '⛈️'); assert.equal(weatherEmoji(undefined), '');
+});
+
+test('funLine is deterministic per date and non-empty', () => {
+  assert.equal(funLine('2026-09-19'), funLine('2026-09-19'));
+  assert.ok(funLine('2026-09-19').length > 5);
+  const distinct = new Set(['2026-09-19', '2026-09-20', '2026-09-26', '2026-10-03', '2026-10-10'].map(funLine));
+  assert.ok(distinct.size >= 2);
+});
+
+test('schoolYearRange spans Aug 1 to Jul 31 of the right year', () => {
+  assert.deepEqual(schoolYearRange('2026-09-17'), { startYear: 2026, start: '2026-08-01', end: '2027-07-31' });
+  assert.deepEqual(schoolYearRange('2027-03-01'), { startYear: 2026, start: '2026-08-01', end: '2027-07-31' });
+  assert.deepEqual(schoolYearRange('2027-08-15'), { startYear: 2027, start: '2027-08-01', end: '2028-07-31' });
+});
+
+test('schoolDaysBetween counts weekdays strictly between, minus closed days', () => {
+  assert.equal(schoolDaysBetween('2026-09-17', '2026-09-21', new Set()), 1);            // Fri 18 only
+  assert.equal(schoolDaysBetween('2026-09-17', '2026-09-28', new Set(['2026-09-21'])), 5); // 18,22,23,24,25
+  assert.equal(schoolDaysBetween('2026-09-17', '2026-09-18', new Set()), 0);
+});
+
+test('cleanDistrictTitle strips FRSD and School Closed boilerplate', () => {
+  assert.equal(cleanDistrictTitle('FRSD-School Closed, Yom Kippur'), 'Yom Kippur');
+  assert.equal(cleanDistrictTitle('FRSD-School Closed - Staff In-Service or Contingency #1'), 'Staff In-Service or Contingency #1');
+  assert.equal(cleanDistrictTitle('FRSD-School Closed, Thanksgiving Recess'), 'Thanksgiving Recess');
+  assert.equal(cleanDistrictTitle('FRSD- 2 Hour Delayed Opening for Students only'), '2 Hour Delayed Opening for Students only');
+  assert.equal(cleanDistrictTitle('Board of Education Meeting'), 'Board of Education Meeting');
+});
+
+const yr = [
+  { date: '2026-09-21', kind: 'closed', title: 'FRSD-School Closed, Yom Kippur' },
+  { date: '2026-10-13', kind: 'early', title: 'FRSD-Early Dismissal, Staff In-Service' },
+  { date: '2026-11-03', kind: 'closed', title: 'FRSD-School Closed, Staff In-Service' },
+  { date: '2026-11-05', kind: 'closed', title: 'FRSD-School Closed, NJEA Convention' },
+  { date: '2026-11-26', kind: 'closed', title: 'FRSD-School Closed, Thanksgiving Recess' },
+  { date: '2026-11-27', kind: 'closed', title: 'FRSD-School Closed, Thanksgiving Recess' },
+  { date: '2026-12-24', kind: 'closed', title: 'FRSD-School Closed - Winter Recess' },
+  { date: '2027-06-18', kind: 'early', title: 'FRSD-Early Dismissal – Last Day of School' },
+].map(e => ({ id: 0, school: 'frsd', allDay: true, startTime: null, endTime: null, venue: '', dayLabel: null, ...e }));
+
+test('nextDayOff finds the next weekday closure and counts school days', () => {
+  assert.deepEqual(nextDayOff(yr, '2026-09-17'), { date: '2026-09-21', title: 'Yom Kippur', schoolDays: 1 });
+  assert.deepEqual(nextDayOff(yr, '2026-09-21'), { date: '2026-11-03', title: 'Staff In-Service', schoolDays: 30 });
+  assert.equal(nextDayOff(yr, '2027-06-20'), null);
+});
+
+test('nextBreak finds the next recess start, then last day of school', () => {
+  const b = nextBreak(yr, '2026-09-17');
+  assert.equal(b.date, '2026-11-26'); assert.equal(b.title, 'Thanksgiving Recess'); assert.equal(b.emoji, '🦃');
+  assert.equal(nextBreak(yr, '2026-11-27').title, 'Winter Recess');
+  assert.equal(nextBreak(yr, '2026-11-27').emoji, '🎄');
+  const last = nextBreak(yr, '2027-01-05');
+  assert.equal(last.date, '2027-06-18'); assert.equal(last.title, 'Last Day of School'); assert.equal(last.emoji, '🎓');
+  assert.equal(nextBreak(yr, '2027-06-20'), null);
+});
+
+test('shareUrl carries schools and view but never the date', () => {
+  assert.equal(shareUrl('https://x.github.io/frsd-calendar/', { schools: ['ch', 'rfis'], view: 'week', date: '2026-09-21' }),
+    'https://x.github.io/frsd-calendar/#s=ch,rfis&v=week');
+  assert.equal(shareUrl('https://x/', { schools: [], view: 'today', date: '2026-09-21' }), 'https://x/');
+});

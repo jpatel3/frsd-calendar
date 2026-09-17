@@ -106,3 +106,108 @@ export function dedupe(list) {
     seen.add(k); return true;
   });
 }
+
+// ================= v2 =================
+
+// ---------- emoji ----------
+const KIND_EMOJI = { closed: '🏠', early: '⏰', delayed: '🕘' };
+const EMOJI_RULES = [
+  [/picture/i, '📸'], [/book fair|library/i, '📚'],
+  [/spirit|dress|pajama|neon|colou?r|\bhat\b|crazy|wacky/i, '🎉'],
+  [/back[- ]to[- ]school night|b2sn/i, '🌙'], [/field trip/i, '🚌'], [/conference/i, '🗣️'],
+  [/\bpto\b/i, '🤝'], [/board of education|\bboe\b/i, '🏛️'],
+  [/concert|\bband\b|chorus|choir|music/i, '🎵'], [/first day/i, '🎒'], [/last day/i, '🎓'],
+  [/ice cream|ice pop|social/i, '🍦'], [/dine out|fundrais|restaurant night/i, '🍕'],
+  [/trimester|report card|progress report/i, '📝'], [/assessment|map growth|njsla|\btest(ing)?\b/i, '✏️'],
+  [/halloween|trunk or treat/i, '🎃'], [/valentine/i, '💝'], [/100th day/i, '💯'],
+  [/science/i, '🔬'], [/\bart\b|artist/i, '🎨'], [/sports?|\bgame\b|\bmeet\b|husky|athletic/i, '🏅'],
+  [/clothing drive|\bdrive\b|donation/i, '📦'],
+];
+export function emojiFor(title, kind) {
+  if (KIND_EMOJI[kind]) return KIND_EMOJI[kind];
+  const t = title || '';
+  for (const [re, e] of EMOJI_RULES) if (re.test(t)) return e;
+  return '';
+}
+
+// ---------- weather (WMO codes) ----------
+export function weatherEmoji(code) {
+  if (code == null) return '';
+  if (code === 0) return '☀️';
+  if (code <= 2) return '🌤️';
+  if (code === 3) return '☁️';
+  if (code <= 48) return '🌫️';
+  if (code <= 57) return '🌦️';
+  if (code <= 67) return '🌧️';
+  if (code <= 77) return '❄️';
+  if (code <= 82) return '🌧️';
+  if (code <= 86) return '🌨️';
+  return '⛈️';
+}
+
+// ---------- fun ----------
+const FUN_LINES = [
+  'Sleep in. You earned it.', 'Pancakes are a valid plan.', 'Homework can wait. Probably.',
+  'Perfect day for a bike ride.', 'Library trip? Library trip.', 'Pajamas until noon is allowed.',
+  'Someone said pillow fort.', 'Board game tournament, anyone?', 'Go find a playground.',
+  'Bake something. Eat the evidence.',
+];
+export function funLine(dateStr) {
+  let h = 0;
+  for (const c of String(dateStr)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return FUN_LINES[h % FUN_LINES.length];
+}
+
+// ---------- countdown ----------
+export function schoolYearRange(today) {
+  const [y, m] = today.split('-').map(Number);
+  const startYear = m >= 8 ? y : y - 1;
+  return { startYear, start: `${startYear}-08-01`, end: `${startYear + 1}-07-31` };
+}
+
+export function schoolDaysBetween(from, to, closedDates) {
+  let n = 0;
+  for (let d = addDays(from, 1); d < to; d = addDays(d, 1)) {
+    if (!isWeekend(d) && !closedDates.has(d)) n++;
+  }
+  return n;
+}
+
+export function cleanDistrictTitle(title) {
+  return String(title || '').trim()
+    .replace(/^FRSD\s*[-–—:]?\s*/i, '')
+    .replace(/^School Closed\s*[-–—,:]?\s*/i, '')
+    .trim();
+}
+
+const closedDatesOf = events => new Set(events.filter(e => e.kind === 'closed').map(e => e.date));
+const byDate = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+
+export function nextDayOff(events, today) {
+  const closed = closedDatesOf(events);
+  const next = events.filter(e => e.kind === 'closed' && e.date > today && !isWeekend(e.date)).sort(byDate)[0];
+  if (!next) return null;
+  return { date: next.date, title: cleanDistrictTitle(next.title), schoolDays: schoolDaysBetween(today, next.date, closed) };
+}
+
+function breakEmoji(title) {
+  if (/thanksgiving/i.test(title)) return '🦃';
+  if (/winter|holiday/i.test(title)) return '🎄';
+  if (/spring/i.test(title)) return '🌸';
+  if (/last day/i.test(title)) return '🎓';
+  return '🏖️';
+}
+
+export function nextBreak(events, today) {
+  const closed = closedDatesOf(events);
+  const recess = events.filter(e => e.kind === 'closed' && e.date > today && /recess|break/i.test(e.title)).sort(byDate)[0];
+  const pick = recess || events.filter(e => e.date > today && /last day of school/i.test(e.title)).sort(byDate)[0];
+  if (!pick) return null;
+  const title = recess ? cleanDistrictTitle(pick.title) : 'Last Day of School';
+  return { date: pick.date, title, emoji: breakEmoji(title), schoolDays: schoolDaysBetween(today, pick.date, closed) };
+}
+
+// ---------- share ----------
+export function shareUrl(base, { schools, view }) {
+  return base + buildHash({ schools, view, date: null }, null);
+}
