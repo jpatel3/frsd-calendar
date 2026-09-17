@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - No build step, no npm dependencies, no framework. Files served as-is by GitHub Pages.
-- Node 20+ only for running tests (`node --test test/`).
+- Node 20+ only for running tests (`node --test`).
 - API base: `https://thrillshare-cmsv2.services.thrillshare.com/api/v4/o`
 - Dates are handled as `YYYY-MM-DD` strings taken from the API's ISO offset string (`start_at.slice(0,10)`), never via `new Date(iso)`, so users in other time zones see the New Jersey date.
 - District (`frsd`) is always included in the data fetch and is not a selectable chip.
@@ -99,7 +99,7 @@ test('schools config has exactly one always-on district entry', () => {
 ```
 `.nojekyll`: empty file. `.gitignore`: `.DS_Store`.
 
-- [ ] **Step 4: Run** `node --test test/` → 1 pass.
+- [ ] **Step 4: Run** `node --test` → 1 pass.
 - [ ] **Step 5: Commit** `feat: scaffold config, fixtures, test harness`
 
 ---
@@ -865,7 +865,7 @@ with a "showing cached data" note. The official PDF calendar is linked in the fo
     open http://localhost:8080/
 
 ## Test
-    node --test test/     # Node 20+
+    node --test     # Node 20+
 
 ## Adapt for another Apptegy district
 Edit `schools.js`. For each school, open its Events page, view page source, and search
@@ -879,7 +879,7 @@ Not affiliated with FRSD. Verify important dates against the official calendar.
 ```
 
 - [ ] **Step 2:** Set `REPO_URL` in `schools.js` to the actual repo URL once known (placeholder `https://github.com/<user>/frsd-calendar` until then).
-- [ ] **Step 3: Run** `node --test test/` → all pass. **Step 4: Commit** `docs: README and deploy notes`
+- [ ] **Step 3: Run** `node --test` → all pass. **Step 4: Commit** `docs: README and deploy notes`
 
 ---
 

@@ -154,7 +154,7 @@ No dependencies, no framework, no build. ES modules via
 
 ## Testing
 
-- `test/lib.test.mjs`, run with `node --test test/`: unit tests for every
+- `test/lib.test.mjs`, run with `node --test`: unit tests for every
   function in `lib.js`, using fixture JSON captured from the live API
   (one page each from ch, rfis, jpc, frsd) stored in `test/fixtures/`.
   Requires Node 20+, nothing else.
