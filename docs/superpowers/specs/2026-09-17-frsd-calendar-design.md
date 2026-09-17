@@ -142,7 +142,9 @@ Single page, mobile-first (works at ~400px), also fine on a laptop.
 index.html      shell, header, containers, footer
 styles.css      layout, school colors, kind styles, responsive rules
 schools.js      the school table (only file a fork needs to edit)
-app.js          state, hash/localStorage, fetch+cache, normalize, render
+lib.js          pure functions, no DOM: isRotationDay, classify, normalize,
+                weekRange, parseHash/buildHash
+app.js          state, localStorage, fetch+cache, render (imports lib.js)
 README.md       what it is, how to use the link, how to fork for another
                 Apptegy district, how to enable Pages
 ```
@@ -152,11 +154,10 @@ No dependencies, no framework, no build. ES modules via
 
 ## Testing
 
-- `test/normalize.test.html`: a page that loads `app.js` pure functions
-  (`isRotationDay`, `classify`, `normalize`, `weekRange`) and asserts
-  against fixture JSON captured from the live API (one page each from
-  ch, rfis, jpc, frsd). Runs in the browser and in Node via
-  `node --test test/*.test.mjs` for the same functions.
+- `test/lib.test.mjs`, run with `node --test test/`: unit tests for every
+  function in `lib.js`, using fixture JSON captured from the live API
+  (one page each from ch, rfis, jpc, frsd) stored in `test/fixtures/`.
+  Requires Node 20+, nothing else.
 - Manual: open `index.html` via a local static server, pick ch+rfis,
   verify Sep 17 2026 shows "Day 4" for CH and "Day 4/B" for RFIS and the
   Sep 21 week shows the Yom Kippur closure banner.
