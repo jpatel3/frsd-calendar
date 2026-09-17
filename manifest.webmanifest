@@ -1,0 +1,14 @@
+{
+  "name": "FRSD Family Calendar",
+  "short_name": "FRSD Cal",
+  "description": "Today and this week for your kids' Flemington-Raritan schools: rotation days, events, closures.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f7f9",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

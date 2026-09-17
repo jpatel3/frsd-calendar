@@ -4,17 +4,40 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>FRSD Family Calendar</title>
-<meta name="description" content="Combined today / week view of Flemington-Raritan school events and rotation days for the schools you pick.">
+<meta name="description" content="Today and this week for all your kids' Flemington-Raritan schools: rotation days, events, closures, early dismissals.">
+<script>try{var t=JSON.parse(localStorage.getItem('frsdcal.theme'));if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}</script>
 <link rel="stylesheet" href="styles.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📅</text></svg>">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#1d4ed8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="FRSD Cal">
+<meta property="og:type" content="website">
+<meta property="og:title" content="FRSD Family Calendar">
+<meta property="og:description" content="Today and this week for all your kids' Flemington-Raritan schools: rotation days, events, closures, early dismissals.">
+<meta property="og:url" content="https://jpatel3.github.io/frsd-calendar/">
+<meta property="og:image" content="https://jpatel3.github.io/frsd-calendar/icons/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
 <header class="top">
-  <div class="brand">
-    <h1>FRSD Family Calendar</h1>
-    <p class="tagline">Pick your kids' schools. See today or this week, together.</p>
+  <div class="brand-row">
+    <div class="brand">
+      <h1>FRSD Family Calendar</h1>
+      <p class="tagline">Pick your kids' schools. See today or this week, together.</p>
+    </div>
+    <div class="tools">
+      <button id="share-btn" type="button" class="tool" title="Share this calendar">↗ Share</button>
+      <button id="theme-btn" type="button" class="tool" title="Light / dark mode" aria-label="Theme: auto">◐</button>
+    </div>
   </div>
   <div id="chips" class="chips" role="group" aria-label="Schools"></div>
+  <p class="tip">Tip: long-press (or double-click) a school to add your kid's name.</p>
   <div class="controls">
     <div class="seg" role="group" aria-label="View">
       <button id="view-today" type="button" aria-pressed="true">Today</button>
@@ -24,16 +47,21 @@
       <button id="nav-prev" type="button" aria-label="Previous">‹</button>
       <button id="nav-today" type="button">Today</button>
       <button id="nav-next" type="button" aria-label="Next">›</button>
+      <button id="print-btn" type="button" aria-label="Print" title="Print this view">🖨</button>
     </div>
-    <div id="range-label" class="range" aria-live="polite"></div>
+    <div class="range"><span id="range-label" aria-live="polite"></span><span id="weather" class="weather"></span></div>
   </div>
+  <div id="countdown" class="countdown" hidden></div>
 </header>
 <main id="main" aria-live="polite"></main>
+<details id="news" class="panel"><summary>📣 Latest from your schools</summary><div id="news-body"></div></details>
+<details id="subscribe" class="panel"><summary>📆 Subscribe in your calendar app</summary><div id="subscribe-body"></div></details>
 <footer class="foot">
   <span id="status"></span>
   <a id="pdf-link" href="#" target="_blank" rel="noopener">Official district calendar (PDF)</a>
   <a id="repo-link" href="#" target="_blank" rel="noopener">Source on GitHub</a>
 </footer>
+<div id="toast" class="toast" role="status"></div>
 <script type="module" src="app.js"></script>
 </body>
 </html>

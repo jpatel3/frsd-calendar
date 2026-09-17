@@ -11,8 +11,21 @@ Live: https://jpatel3.github.io/frsd-calendar/
 
 1. Open the page and tap the schools your kids attend.
 2. Toggle **Today** / **Week**. Use ‹ › to move between days or weeks.
-3. Bookmark the URL. Your selection is in it, for example `#s=ch,rfis&v=week`,
-   so you can share it with a co-parent or another family at the same schools.
+3. Tap **Share** to send the link (your school selection is in it, for example
+   `#s=ch,rfis&v=week`) to a co-parent or another family at the same schools.
+4. On your phone, use **Add to Home Screen** so it opens like an app.
+
+Also on the page:
+
+- **Day / night**: the ◐ button cycles Auto → Light → Dark.
+- **Kid names**: long-press (or double-click) a school chip to label it, e.g. "Maya · CH".
+  Names stay on your device and are not part of the shared link.
+- **Countdown**: next day off and next break, counted in school days.
+- **Weather** for Flemington next to the date (Open-Meteo, no account needed).
+- **No school?** Weekends and closure days get a celebration instead of empty cards.
+- **📣 Latest from your schools**: recent announcements from each school's live feed.
+- **📆 Subscribe**: official iCal feeds per school for Apple or Google Calendar.
+- **🖨 Print**: Week view prints on one landscape page for the fridge.
 
 Data is pulled live from the district's public website API (Apptegy/Thrillshare)
 and cached in your browser for six hours. If the network is down you'll see the
@@ -32,8 +45,14 @@ in the footer.
 
 Edit `schools.js`. For each school, open its Events page on the district site,
 view the page source, and search for `cms/events?section_ids=`. The number after
-`/o/` is `org`; the number after `section_ids=` is `section`. Update `PDF_URL`
-and `REPO_URL` too. Rotation-day detection lives in `lib.js` (`isRotationDay`).
+`/o/` is `org`; the number after `section_ids=` is `section`. Search the same
+source for `live_feeds?section_ids=` to get `feed` (announcements). Update
+`PDF_URL`, `REPO_URL`, `SITE_URL` and `WEATHER` (your town's coordinates) too.
+Rotation-day detection and emoji keywords live in `lib.js`.
+
+Files: `index.html` (shell), `styles.css`, `schools.js` (config), `lib.js` (pure
+functions, tested), `data.js` (fetch + cache), `app.js` (UI), `manifest.webmanifest`
+and `icons/` (home-screen icon and link preview image).
 
 ## Deploy on GitHub Pages
 

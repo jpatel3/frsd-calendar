@@ -1,34 +1,65 @@
-import { SCHOOLS, SELECTABLE_KEYS, API_BASE, PDF_URL, REPO_URL } from './schools.js';
-import { parseHash, buildHash, formatDate, addDays, weekRange, mondayOf, isWeekend,
-         normalize, sortEvents, dedupe, buildEventsUrl, parseDate } from './lib.js';
+import { SCHOOLS, SELECTABLE_KEYS, PDF_URL, REPO_URL, WEATHER, icalUrl } from './schools.js';
+import { parseHash, buildHash, formatDate, addDays, weekRange, mondayOf, isWeekend, parseDate, sortEvents, dedupe,
+         emojiFor, weatherEmoji, funLine, nextDayOff, nextBreak, cleanDistrictTitle, shareUrl } from './lib.js';
+import { store, pruneCache, loadSchoolWeek, loadDistrictYear, loadNews, loadWeather } from './data.js';
 
-const LS_SCHOOLS = 'frsdcal.schools';
-const CACHE_PREFIX = 'frsdcal.cache.';
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
-const CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-
+const LS = { schools: 'frsdcal.schools', theme: 'frsdcal.theme', names: 'frsdcal.names' };
 const BY_KEY = Object.fromEntries(SCHOOLS.map(s => [s.key, s]));
 const DISTRICT = SCHOOLS.find(s => s.always);
 const $ = id => document.getElementById(id);
-
 const todayStr = () => formatDate(new Date());
+
 const state = { schools: [], view: 'today', date: todayStr() };
-let events = [];               // normalized events for the fetched window
+let names = store.get(LS.names) || {};
+let events = [];       // normalized events for the fetched week
+let year = null;       // district events for the school year (countdown)
+let weather = null;    // { date: { code, hi, lo, rain } }
+let news = null;       // merged live-feed posts, or null until loaded
 let status = { fetchedAt: null, cached: false, failed: [], loading: false };
 let loadSeq = 0;
 
-// ---------- storage (every access guarded) ----------
-const store = {
-  get(k) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* ignore */ } },
-  remove(k) { try { localStorage.removeItem(k); } catch { /* ignore */ } },
-  keys() { try { return Object.keys(localStorage); } catch { return []; } },
+// ---------- formatting ----------
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtLong = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+const fmtMed = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+const fmtShort = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
+const fmtDow = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
+const fmtClock = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
+function fmtTime(hhmm) {
+  if (!hhmm) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  const ampm = h >= 12 ? 'PM' : 'AM', h12 = h % 12 || 12;
+  return m ? `${h12}:${String(m).padStart(2, '0')} ${ampm}` : `${h12} ${ampm}`;
+}
+const label = ev => { const e = emojiFor(ev.title, ev.kind); return (e ? e + ' ' : '') + ev.title; };
+const displayName = s => (names[s.key] ? `${names[s.key]} · ${s.name}` : s.name);
+const chipLabel = s => (names[s.key] ? `${esc(names[s.key])} · ${s.short}` : s.short);
+const wx = d => {
+  const w = weather && weather[d];
+  return w ? `${weatherEmoji(w.code)} ${w.hi}° / ${w.lo}°${w.rain >= 30 ? ` · ${w.rain}% 🌧` : ''}` : '';
 };
+
+// ---------- theme ----------
+const THEMES = ['auto', 'light', 'dark'];
+const THEME_ICON = { auto: '◐', light: '☀️', dark: '🌙' };
+function applyTheme(t) {
+  if (t === 'auto') delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t;
+  $('theme-btn').textContent = THEME_ICON[t];
+  $('theme-btn').setAttribute('aria-label', `Theme: ${t}`);
+}
+function currentTheme() { const t = store.get(LS.theme); return THEMES.includes(t) ? t : 'auto'; }
+
+// ---------- toast ----------
+let toastTimer;
+function toast(msg) {
+  const el = $('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
 
 // ---------- state ----------
 function setState(patch, { reload = true } = {}) {
   Object.assign(state, patch);
-  store.set(LS_SCHOOLS, state.schools);
+  store.set(LS.schools, state.schools);
   const h = buildHash(state, todayStr());
   if (location.hash !== h) history.replaceState(null, '', h || location.pathname + location.search);
   renderControls();
@@ -37,30 +68,48 @@ function setState(patch, { reload = true } = {}) {
 
 function readInitialState() {
   const fromHash = parseHash(location.hash, SELECTABLE_KEYS);
-  const saved = store.get(LS_SCHOOLS);
+  const saved = store.get(LS.schools);
   const schools = fromHash.schools.length ? fromHash.schools
     : Array.isArray(saved) ? saved.filter(k => SELECTABLE_KEYS.includes(k)) : [];
   return { schools, view: fromHash.view, date: fromHash.date || todayStr() };
 }
 
-// ---------- controls ----------
+// ---------- chips (toggle on tap, nickname on long-press / double-click) ----------
+function editName(s) {
+  const cur = names[s.key] || '';
+  const v = prompt(`Your kid's name for ${s.name} (leave blank to clear):`, cur);
+  if (v === null) return;
+  const name = v.trim().slice(0, 24);
+  if (name) names[s.key] = name; else delete names[s.key];
+  store.set(LS.names, names);
+  renderChips(); render();
+}
+
 function renderChips() {
-  $('chips').innerHTML = '';
+  const box = $('chips'); box.innerHTML = '';
   for (const s of SCHOOLS) {
     if (s.always) continue;
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'chip'; b.style.setProperty('--c', s.color);
-    b.dataset.key = s.key;
+    b.dataset.key = s.key; b.title = `${s.name} (${s.grades})`;
     b.setAttribute('aria-pressed', String(state.schools.includes(s.key)));
-    b.innerHTML = `${s.short}<small>${s.grades}</small>`;
-    b.title = s.name;
+    b.innerHTML = `${chipLabel(s)}<small>${s.grades}</small>`;
+    let timer = null, longPressed = false;
+    const start = () => { longPressed = false; timer = setTimeout(() => { longPressed = true; editName(s); }, 500); };
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    b.addEventListener('pointerdown', start);
+    b.addEventListener('pointerup', cancel); b.addEventListener('pointerleave', cancel); b.addEventListener('pointercancel', cancel);
+    b.addEventListener('contextmenu', e => e.preventDefault());
+    b.addEventListener('dblclick', () => editName(s));
     b.addEventListener('click', () => {
+      if (longPressed) { longPressed = false; return; }
       const on = state.schools.includes(s.key);
       const next = on ? state.schools.filter(k => k !== s.key)
                       : SELECTABLE_KEYS.filter(k => k === s.key || state.schools.includes(k)); // keep table order
+      news = null;
       setState({ schools: next });
     });
-    $('chips').appendChild(b);
+    box.appendChild(b);
   }
 }
 
@@ -68,17 +117,24 @@ function renderControls() {
   for (const b of $('chips').children) b.setAttribute('aria-pressed', String(state.schools.includes(b.dataset.key)));
   $('view-today').setAttribute('aria-pressed', String(state.view === 'today'));
   $('view-week').setAttribute('aria-pressed', String(state.view === 'week'));
-  $('range-label').textContent = rangeLabel();
+  $('range-label').textContent = state.view === 'today' ? fmtLong.format(parseDate(state.date))
+    : (w => `${fmtShort.format(parseDate(w.monday))} – ${fmtShort.format(parseDate(w.friday))}`)(weekRange(state.date));
+  $('weather').textContent = state.view === 'today' ? wx(state.date) : '';
+  $('weather').title = WEATHER.label;
 }
 
-const fmtLong = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-const fmtShort = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
-const fmtDow = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
-const fmtClock = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' });
-function rangeLabel() {
-  if (state.view === 'today') return fmtLong.format(parseDate(state.date));
-  const w = weekRange(state.date);
-  return `${fmtShort.format(parseDate(w.monday))} – ${fmtShort.format(parseDate(w.friday))}`;
+function step(dir) {
+  if (state.view === 'week') return setState({ date: addDays(weekRange(state.date).monday, 7 * dir) });
+  let d = addDays(state.date, dir);
+  while (isWeekend(d)) d = addDays(d, dir);
+  setState({ date: d });
+}
+
+async function share() {
+  const url = shareUrl(location.origin + location.pathname, state);
+  const data = { title: 'FRSD Family Calendar', text: "Our kids' school days, all in one place", url };
+  if (navigator.share) { try { await navigator.share(data); } catch { /* user cancelled */ } return; }
+  try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch { prompt('Copy this link:', url); }
 }
 
 function wireControls() {
@@ -87,57 +143,25 @@ function wireControls() {
   $('nav-today').addEventListener('click', () => setState({ date: todayStr() }));
   $('nav-prev').addEventListener('click', () => step(-1));
   $('nav-next').addEventListener('click', () => step(1));
-  window.addEventListener('hashchange', () => { Object.assign(state, readInitialState()); renderControls(); load(); });
+  $('print-btn').addEventListener('click', () => window.print());
+  $('share-btn').addEventListener('click', share);
+  $('theme-btn').addEventListener('click', () => {
+    const t = THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length];
+    store.set(LS.theme, t); applyTheme(t);
+  });
+  $('news').addEventListener('toggle', () => { if ($('news').open && !news) loadNewsPanel(); });
+  document.addEventListener('click', async e => {
+    const c = e.target.closest('[data-copy]');
+    if (c) { try { await navigator.clipboard.writeText(c.dataset.copy); toast('Calendar URL copied'); } catch { prompt('Copy this URL:', c.dataset.copy); } }
+    const m = e.target.closest('.news-item .more');
+    if (m) m.closest('.news-item').classList.add('open');
+    if (e.target.closest('[data-retry]')) load();
+  });
+  window.addEventListener('hashchange', () => { Object.assign(state, readInitialState()); news = null; renderControls(); load(); });
   $('pdf-link').href = PDF_URL; $('repo-link').href = REPO_URL;
-}
-function step(dir) {
-  if (state.view === 'week') return setState({ date: addDays(weekRange(state.date).monday, 7 * dir) });
-  let d = addDays(state.date, dir);
-  while (isWeekend(d)) d = addDays(d, dir); // skip weekends in Today view
-  setState({ date: d });
 }
 
 // ---------- data ----------
-async function fetchAllPages(school, start, end) {
-  const out = [];
-  for (let page = 1; page <= 50; page++) {
-    const res = await fetch(buildEventsUrl(API_BASE, school, start, end, page), { headers: { accept: 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    out.push(...(json.events || []));
-    if (!json.meta?.links?.next) break;
-  }
-  return out;
-}
-
-function pruneCache() {
-  const cutoff = Date.now() - CACHE_MAX_AGE_MS;
-  for (const k of store.keys()) {
-    if (!k.startsWith(CACHE_PREFIX)) continue;
-    const v = store.get(k);
-    if (!v || !v.fetchedAt || v.fetchedAt < cutoff) store.remove(k);
-  }
-}
-
-async function getSchoolWeek(school, monday) {
-  const key = `${CACHE_PREFIX}${school.key}.${monday}`;
-  const cached = store.get(key);
-  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
-    return { events: cached.events, fromCache: false, failed: false, fetchedAt: cached.fetchedAt };
-  }
-  try {
-    const raw = await fetchAllPages(school, monday, addDays(monday, 6));
-    const evs = raw.flatMap(r => normalize(r, school.key));
-    const fetchedAt = Date.now();
-    store.set(key, { fetchedAt, events: evs });
-    return { events: evs, fromCache: false, failed: false, fetchedAt };
-  } catch (err) {
-    console.warn('fetch failed', school.key, err);
-    if (cached) return { events: cached.events, fromCache: true, failed: false, fetchedAt: cached.fetchedAt };
-    return { events: [], fromCache: false, failed: true, fetchedAt: null };
-  }
-}
-
 function currentMonday() { return state.view === 'week' ? weekRange(state.date).monday : mondayOf(state.date); }
 
 async function load() {
@@ -146,39 +170,46 @@ async function load() {
   status = { ...status, loading: true }; render();
   const monday = currentMonday();
   const wanted = [DISTRICT, ...state.schools.map(k => BY_KEY[k])];
-  const results = await Promise.all(wanted.map(s => getSchoolWeek(s, monday)));
-  if (seq !== loadSeq) return; // a newer load superseded this one
-  events = dedupe(results.flatMap(r => r.events));
+  const [weeks, yr, wxr] = await Promise.all([
+    Promise.all(wanted.map(s => loadSchoolWeek(s, monday))),
+    loadDistrictYear(DISTRICT, todayStr()),
+    loadWeather(),
+  ]);
+  if (seq !== loadSeq) return;
+  events = dedupe(weeks.flatMap(r => r.data || []));
+  year = yr.data; weather = wxr.data;
   status = {
     loading: false,
-    cached: results.some(r => r.fromCache),
-    failed: wanted.filter((s, i) => results[i].failed).map(s => s.key),
-    fetchedAt: Math.max(0, ...results.map(r => r.fetchedAt || 0)) || null,
+    cached: weeks.some(r => r.fromCache),
+    failed: wanted.filter((s, i) => weeks[i].failed).map(s => s.key),
+    fetchedAt: Math.max(0, ...weeks.map(r => r.fetchedAt || 0)) || null,
   };
-  render();
+  renderControls(); render();
+}
+
+async function loadNewsPanel() {
+  $('news-body').innerHTML = '<p class="empty">Loading…</p>';
+  const wanted = [DISTRICT, ...state.schools.map(k => BY_KEY[k])];
+  const res = await Promise.all(wanted.map(loadNews));
+  news = res.flatMap(r => r.data || []).sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 8);
+  renderNews();
 }
 
 // ---------- render ----------
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-function fmtTime(hhmm) {
-  if (!hhmm) return '';
-  const [h, m] = hhmm.split(':').map(Number);
-  const ampm = h >= 12 ? 'PM' : 'AM', h12 = h % 12 || 12;
-  return m ? `${h12}:${String(m).padStart(2, '0')} ${ampm}` : `${h12} ${ampm}`;
-}
+const onDate = (d, key) => events.filter(e => e.date === d && (key ? e.school === key : true)).sort(sortEvents);
+const isAlert = e => e.kind !== 'event';
+
 function eventLi(ev) {
   const time = ev.allDay ? '<span></span>'
     : `<time>${esc(fmtTime(ev.startTime))}${ev.endTime ? '–' + esc(fmtTime(ev.endTime)) : ''}</time>`;
   const venue = ev.venue ? `<div class="venue">${esc(ev.venue)}</div>` : '';
-  return `<li class="ev kind-${ev.kind}">${time}<div><div class="title">${esc(ev.title)}</div>${venue}</div></li>`;
+  return `<li class="ev kind-${ev.kind}">${time}<div><div class="title">${esc(label(ev))}</div>${venue}</div></li>`;
 }
-const onDate = (d, key) => events.filter(e => e.date === d && (key ? e.school === key : true)).sort(sortEvents);
-const isAlert = e => e.kind !== 'event';
 
-function bannerHtml(d) {
-  const alerts = onDate(d, DISTRICT.key).filter(isAlert);
+function bannerHtml(d, { skipClosed = false } = {}) {
+  const alerts = onDate(d, DISTRICT.key).filter(isAlert).filter(e => !(skipClosed && e.kind === 'closed'));
   return alerts.length
-    ? `<section class="banner">${alerts.map(e => `<div class="banner-item kind-${e.kind}">${esc(e.title)}</div>`).join('')}</section>` : '';
+    ? `<section class="banner">${alerts.map(e => `<div class="banner-item kind-${e.kind}">${esc(label(e))}</div>`).join('')}</section>` : '';
 }
 
 function schoolCard(s, d) {
@@ -189,17 +220,22 @@ function schoolCard(s, d) {
   const list = rest.length ? `<ul class="events">${rest.map(eventLi).join('')}</ul>` : `<p class="empty">Nothing else scheduled</p>`;
   const failed = status.failed.includes(s.key)
     ? `<p class="empty">Couldn't load. <button class="retry" type="button" data-retry>Retry</button></p>` : '';
-  return `<article class="card" style="--c:${s.color}"><h2>${esc(s.name)} <small>${esc(s.grades)}</small></h2>${badge}${failed || list}</article>`;
+  return `<article class="card" style="--c:${s.color}"><h2>${esc(displayName(s))} <small>${esc(s.grades)}</small></h2>${badge}${failed || list}</article>`;
 }
 
 function renderToday() {
   const d = state.date;
-  const cards = state.schools.map(k => schoolCard(BY_KEY[k], d)).join('');
+  const closed = onDate(d, DISTRICT.key).filter(e => e.kind === 'closed');
+  const weekend = isWeekend(d);
   const other = onDate(d, DISTRICT.key).filter(e => !isAlert(e));
   const district = other.length
-    ? `<section class="district">District: <ul>${other.map(e => `<li>${e.allDay ? '' : esc(fmtTime(e.startTime)) + ' · '}${esc(e.title)}</li>`).join('')}</ul></section>` : '';
-  const weekend = isWeekend(d) ? '<p class="hint">Weekend — no school.</p>' : '';
-  return `${bannerHtml(d)}${weekend}<div class="cards">${cards}</div>${district}`;
+    ? `<section class="district">District: <ul>${other.map(e => `<li>${e.allDay ? '' : esc(fmtTime(e.startTime)) + ' · '}${esc(label(e))}</li>`).join('')}</ul></section>` : '';
+  if (weekend || closed.length) {
+    const why = weekend ? "It's the weekend." : closed.map(e => cleanDistrictTitle(e.title)).join(' · ');
+    return `${bannerHtml(d, { skipClosed: true })}<section class="party"><div class="party-title">No school today! 🎉</div><div class="party-why">${esc(why)}</div><div class="party-line">${esc(funLine(d))}</div></section>${district}`;
+  }
+  const cards = state.schools.map(k => schoolCard(BY_KEY[k], d)).join('');
+  return `${bannerHtml(d)}<div class="cards">${cards}</div>${district}`;
 }
 
 function renderWeek() {
@@ -208,18 +244,57 @@ function renderWeek() {
     const dt = parseDate(d);
     const cls = ['col', d === today && 'today', d < today && 'past'].filter(Boolean).join(' ');
     const banners = onDate(d, DISTRICT.key).filter(isAlert)
-      .map(e => `<div class="banner-item kind-${e.kind}">${esc(e.title)}</div>`).join('');
+      .map(e => `<div class="banner-item kind-${e.kind}">${esc(label(e))}</div>`).join('');
     const rows = state.schools.map(k => {
       const s = BY_KEY[k]; const evs = onDate(d, k);
       const day = evs.find(e => e.dayLabel); const rest = evs.filter(e => e !== day);
-      const lines = rest.map(e => `<div class="t" title="${esc(e.title)}">${e.allDay ? '' : `<time>${esc(fmtTime(e.startTime))}</time>`}${esc(e.title)}</div>`).join('');
-      return `<div class="row" style="--c:${s.color}"><div class="who"><b>${esc(s.short)}</b>${day ? `<span class="mini">${esc(day.dayLabel)}</span>` : ''}</div>${lines}</div>`;
+      const lines = rest.map(e => `<div class="t" title="${esc(e.title)}">${e.allDay ? '' : `<time>${esc(fmtTime(e.startTime))}</time>`}${esc(label(e))}</div>`).join('');
+      const who = names[k] ? `${esc(names[k])} · ${esc(s.short)}` : esc(s.short);
+      return `<div class="row" style="--c:${s.color}"><div class="who"><b>${who}</b>${day ? `<span class="mini">${esc(day.dayLabel)}</span>` : ''}</div>${lines}</div>`;
     }).join('');
     const other = onDate(d, DISTRICT.key).filter(e => !isAlert(e))
-      .map(e => `<div class="t district" title="${esc(e.title)}">${esc(e.title)}</div>`).join('');
-    return `<section class="${cls}"><h3><span>${fmtShort.format(dt)}</span><span class="dow">${fmtDow.format(dt)}</span></h3>${banners}${rows}${other}</section>`;
+      .map(e => `<div class="t district" title="${esc(e.title)}">${esc(label(e))}</div>`).join('');
+    const w2 = wx(d);
+    return `<section class="${cls}"><h3><span>${fmtShort.format(dt)}</span><span class="dow">${fmtDow.format(dt)}</span>${w2 ? `<span class="wx">${w2}</span>` : ''}</h3>${banners}${rows}${other}</section>`;
   }).join('');
   return `<div class="week">${cols}</div>`;
+}
+
+function renderCountdown() {
+  const box = $('countdown');
+  if (!year || !state.schools.length) { box.hidden = true; return; }
+  const today = todayStr();
+  const off = nextDayOff(year, today), brk = nextBreak(year, today);
+  const when = n => (n === 0 ? 'next school day' : n === 1 ? 'in 1 school day' : `in <span class="n">${n}</span> school days`);
+  const pills = [];
+  if (off) pills.push(`<span class="pill">🏠 <b>Next day off</b> · ${fmtMed.format(parseDate(off.date))} · ${esc(off.title)} · ${when(off.schoolDays)}</span>`);
+  if (brk && (!off || brk.date !== off.date)) pills.push(`<span class="pill">${brk.emoji} <b>${esc(brk.title)}</b> · ${fmtMed.format(parseDate(brk.date))} · <span class="n">${brk.schoolDays}</span> school days to go</span>`);
+  box.innerHTML = pills.join(''); box.hidden = !pills.length;
+}
+
+function renderSubscribe() {
+  const list = [DISTRICT, ...state.schools.map(k => BY_KEY[k])].map(s =>
+    `<li style="--c:${s.color}"><b>${esc(s.name)}</b> <a href="${icalUrl(s, 'webcal')}">Apple / iPhone</a> <button type="button" class="linky" data-copy="${icalUrl(s)}">Copy URL for Google</button></li>`).join('');
+  $('subscribe-body').innerHTML = `<p class="sub-note">Official feeds from the school website. Apple: tap the link and choose Subscribe. Google Calendar: Other calendars → From URL → paste.</p><ul class="sub-list">${list}</ul>`;
+}
+
+function renderNews() {
+  const body = $('news-body');
+  if (!news) { body.innerHTML = ''; return; }
+  if (!news.length) { body.innerHTML = '<p class="empty">No recent posts.</p>'; return; }
+  const parser = new DOMParser();
+  body.innerHTML = `<ul class="news-list">${news.map(p => {
+    const doc = parser.parseFromString(p.html, 'text/html');
+    const text = (doc.body.textContent || '').replace(/\s+\n/g, '\n').replace(/[ \t]+/g, ' ').trim();
+    const links = [...new Set([...doc.querySelectorAll('a[href]')].map(a => a.getAttribute('href')).concat(p.urls))]
+      .filter(u => /^https?:\/\//.test(u)).slice(0, 3);
+    const s = BY_KEY[p.school];
+    const short = text.length > 220 ? text.slice(0, 220).trimEnd() + '…' : text;
+    const textHtml = text.length > 220
+      ? `<span class="short">${esc(short)}</span><span class="full">${esc(text)}</span> <button type="button" class="linky more">more</button>` : esc(text);
+    const linkHtml = links.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(new URL(u).hostname.replace(/^www\./, ''))} ↗</a>`).join('');
+    return `<li class="news-item" style="--c:${s.color}"><div class="who"><b>${esc(s.short)}</b> · ${esc(p.ago)}</div><p>${textHtml}</p>${linkHtml}</li>`;
+  }).join('')}</ul>`;
 }
 
 function renderStatus() {
@@ -233,15 +308,16 @@ function renderStatus() {
 
 function render() {
   const main = $('main');
-  renderStatus();
-  if (!state.schools.length) { main.innerHTML = '<p class="hint">Pick your schools above to get started.</p>'; return; }
+  renderStatus(); renderCountdown(); renderSubscribe();
+  if (!state.schools.length) { main.innerHTML = '<p class="hint">Pick your schools above to get started.</p>'; $('news-body').innerHTML = ''; return; }
   if (status.loading && !events.length) { main.innerHTML = '<p class="empty">Loading…</p>'; return; }
   main.innerHTML = state.view === 'today' ? renderToday() : renderWeek();
-  main.querySelectorAll('[data-retry]').forEach(b => b.addEventListener('click', () => load()));
+  if ($('news').open && !news) loadNewsPanel();
 }
 
 // ---------- boot ----------
 pruneCache();
+applyTheme(currentTheme());
 Object.assign(state, readInitialState());
 renderChips();
 wireControls();
