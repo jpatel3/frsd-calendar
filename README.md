@@ -51,8 +51,21 @@ source for `live_feeds?section_ids=` to get `feed` (announcements). Update
 Rotation-day detection and emoji keywords live in `lib.js`.
 
 Files: `index.html` (shell), `styles.css`, `schools.js` (config), `lib.js` (pure
-functions, tested), `data.js` (fetch + cache), `app.js` (UI), `manifest.webmanifest`
-and `icons/` (home-screen icon and link preview image).
+functions, tested), `data.js` (fetch + cache), `app.js` (UI), `analytics.js`,
+`sw.js` (offline shell), `manifest.webmanifest` and `icons/` (home-screen icon
+and link preview image).
+
+## Offline
+
+`sw.js` caches the app shell so the home-screen app opens in a dead zone and
+renders from whatever `data.js` last saved in localStorage; the footer says
+"offline — showing saved data", and the view reloads itself when the connection
+returns. Every same-origin file is network-first with a cache fallback, because
+nothing here is content-hashed — that way a deploy is always picked up whole,
+never new HTML against stale JS. The school feeds, weather and analytics are not
+intercepted at all. Bump `VERSION` in `sw.js` only when you want the old cache
+thrown away; users then get a "New version ready · Refresh" tap, and nothing
+reloads under them until they take it.
 
 ## Usage tracking
 

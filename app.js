@@ -52,9 +52,15 @@ function currentTheme() { const t = store.get(LS.theme); return THEMES.includes(
 
 // ---------- toast ----------
 let toastTimer;
-function toast(msg) {
+function toast(msg, action) {
   const el = $('toast'); el.textContent = msg; el.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  clearTimeout(toastTimer);
+  el.classList.toggle('sticky', !!action);           // sticky toasts wait for a tap
+  if (!action) { toastTimer = setTimeout(() => el.classList.remove('show'), 2200); return; }
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'toast-btn'; b.textContent = action.label;
+  b.addEventListener('click', () => { el.classList.remove('show'); action.run(); });
+  el.appendChild(b);
 }
 
 // ---------- state ----------
@@ -326,8 +332,9 @@ function renderStatus() {
   const parts = [];
   if (status.loading) parts.push('Loading…');
   else if (status.fetchedAt) parts.push(`Updated ${fmtClock.format(status.fetchedAt)}`);
-  if (status.cached) parts.push('showing cached data');
-  if (status.failed.length) parts.push(`couldn't load: ${status.failed.map(k => BY_KEY[k].short).join(', ')}`);
+  if (!navigator.onLine) parts.push('offline — showing saved data');
+  else if (status.cached) parts.push('showing cached data');
+  if (navigator.onLine && status.failed.length) parts.push(`couldn't load: ${status.failed.map(k => BY_KEY[k].short).join(', ')}`);
   $('status').textContent = parts.join(' · ');
 }
 
@@ -340,7 +347,37 @@ function render() {
   if ($('news').open && !news) loadNewsPanel();
 }
 
+// ---------- offline shell ----------
+let reloadOnControllerChange = false;
+
+function registerSW() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadOnControllerChange) location.reload();
+  });
+  window.addEventListener('load', async () => {
+    try {
+      const reg = await navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+      reg.addEventListener('updatefound', () => {
+        const sw = reg.installing;
+        // No controller yet means this is the first install — nothing to announce.
+        if (!sw || !navigator.serviceWorker.controller) return;
+        sw.addEventListener('statechange', () => {
+          if (sw.state !== 'installed') return;
+          toast('New version ready', { label: 'Refresh', run: () => { reloadOnControllerChange = true; sw.postMessage('skip-waiting'); } });
+        });
+      });
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+    } catch { /* the offline shell is a bonus; never let it break the page */ }
+  });
+}
+
+// Coming back from a dead zone should heal by itself, not need a pull-to-refresh.
+window.addEventListener('online', () => { renderStatus(); load(); });
+window.addEventListener('offline', renderStatus);
+
 // ---------- boot ----------
+registerSW();
 initAnalytics();
 pruneCache();
 applyTheme(currentTheme());

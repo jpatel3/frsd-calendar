@@ -129,6 +129,8 @@ main { max-width: 1200px; margin: 16px auto 0; }
 .retry { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 10px; opacity: 0; transition: .25s; pointer-events: none; }
 .toast.show { opacity: 1; transform: translateX(-50%); }
+.toast.sticky { pointer-events: auto; display: flex; align-items: center; gap: 12px; white-space: nowrap; max-width: calc(100vw - 32px); }
+.toast-btn { border: 0; background: var(--bg); color: var(--ink); font: inherit; font-weight: 600; border-radius: 8px; padding: 4px 12px; cursor: pointer; }
 
 @media (max-width: 899px) { .week { grid-template-columns: 1fr; } .col.past { opacity: .75; } }
 @media (max-width: 520px) {
