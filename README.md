@@ -54,6 +54,20 @@ Files: `index.html` (shell), `styles.css`, `schools.js` (config), `lib.js` (pure
 functions, tested), `data.js` (fetch + cache), `app.js` (UI), `manifest.webmanifest`
 and `icons/` (home-screen icon and link preview image).
 
+## Usage tracking
+
+`GA_ID` in `schools.js` holds the Google Analytics 4 measurement ID. Leave it
+empty and nothing is loaded and no request is made; set it and `analytics.js`
+injects gtag.js — but only on `*.github.io`, so local tinkering never lands in
+the numbers. Beyond pageviews it sends `select_schools`, `view_change`, `share`,
+`print` and `open_panel` events.
+
+For Google Search Console, add a URL-prefix property for the site, verify with
+the *HTML tag* method and paste the token into the commented-out
+`google-site-verification` meta in `index.html`, then submit `sitemap.xml`.
+A `robots.txt` here would do nothing — crawlers only read it at the domain
+root, which a project Pages site doesn't own.
+
 ## Deploy on GitHub Pages
 
 Settings → Pages → Source: *Deploy from a branch* → `main` / `(root)`.

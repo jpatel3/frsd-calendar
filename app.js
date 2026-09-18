@@ -2,6 +2,7 @@ import { SCHOOLS, SELECTABLE_KEYS, PDF_URL, REPO_URL, WEATHER, icalUrl } from '.
 import { parseHash, buildHash, formatDate, addDays, weekRange, mondayOf, isWeekend, parseDate, sortEvents, dedupe,
          emojiFor, weatherEmoji, funLine, nextDayOff, nextBreak, cleanDistrictTitle, shareUrl } from './lib.js';
 import { store, pruneCache, loadSchoolWeek, loadDistrictYear, loadNews, loadWeather } from './data.js';
+import { initAnalytics, track } from './analytics.js';
 
 const LS = { schools: 'frsdcal.schools', theme: 'frsdcal.theme', names: 'frsdcal.names' };
 const BY_KEY = Object.fromEntries(SCHOOLS.map(s => [s.key, s]));
@@ -107,6 +108,7 @@ function renderChips() {
       const next = on ? state.schools.filter(k => k !== s.key)
                       : SELECTABLE_KEYS.filter(k => k === s.key || state.schools.includes(k)); // keep table order
       news = null;
+      track('select_schools', { schools: next.join(',') || 'none', count: next.length });
       setState({ schools: next });
     });
     box.appendChild(b);
@@ -148,23 +150,25 @@ function step(dir) {
 async function share() {
   const url = shareUrl(location.origin + location.pathname, state);
   const data = { title: 'FRSD Family Calendar', text: "Our kids' school days, all in one place", url };
-  if (navigator.share) { try { await navigator.share(data); } catch { /* user cancelled */ } return; }
+  if (navigator.share) { track('share', { method: 'native' }); try { await navigator.share(data); } catch { /* user cancelled */ } return; }
+  track('share', { method: 'copy' });
   try { await navigator.clipboard.writeText(url); toast('Link copied'); } catch { prompt('Copy this link:', url); }
 }
 
 function wireControls() {
-  $('view-today').addEventListener('click', () => setState({ view: 'today' }));
-  $('view-week').addEventListener('click', () => setState({ view: 'week' }));
+  $('view-today').addEventListener('click', () => { track('view_change', { view: 'today' }); setState({ view: 'today' }); });
+  $('view-week').addEventListener('click', () => { track('view_change', { view: 'week' }); setState({ view: 'week' }); });
   $('nav-today').addEventListener('click', () => setState({ date: todayStr() }));
   $('nav-prev').addEventListener('click', () => step(-1));
   $('nav-next').addEventListener('click', () => step(1));
-  $('print-btn').addEventListener('click', () => window.print());
+  $('print-btn').addEventListener('click', () => { track('print', { view: state.view }); window.print(); });
   $('share-btn').addEventListener('click', share);
   $('theme-btn').addEventListener('click', () => {
     const t = THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length];
     store.set(LS.theme, t); applyTheme(t);
   });
-  $('news').addEventListener('toggle', () => { if ($('news').open && !news) loadNewsPanel(); });
+  $('news').addEventListener('toggle', () => { if ($('news').open) { track('open_panel', { panel: 'news' }); if (!news) loadNewsPanel(); } });
+  $('subscribe').addEventListener('toggle', () => { if ($('subscribe').open) track('open_panel', { panel: 'subscribe' }); });
   document.addEventListener('click', async e => {
     const c = e.target.closest('[data-copy]');
     if (c) { try { await navigator.clipboard.writeText(c.dataset.copy); toast('Calendar URL copied'); } catch { prompt('Copy this URL:', c.dataset.copy); } }
@@ -337,6 +341,7 @@ function render() {
 }
 
 // ---------- boot ----------
+initAnalytics();
 pruneCache();
 applyTheme(currentTheme());
 Object.assign(state, readInitialState());

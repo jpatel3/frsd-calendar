@@ -5,6 +5,10 @@ export const PDF_URL = 'https://files-backend.assets.thrillshare.com/documents/a
 export const REPO_URL = 'https://github.com/jpatel3/frsd-calendar';
 export const SITE_URL = 'https://jpatel3.github.io/frsd-calendar/';
 
+// Google Analytics 4 measurement ID ('G-XXXXXXXXXX', from Admin -> Data streams).
+// Empty = no analytics at all: nothing is loaded and no request is made.
+export const GA_ID = '';
+
 // Used for the weather strip (Open-Meteo, no key). Set to your town.
 export const WEATHER = { lat: 40.5123, lon: -74.8594, label: 'Flemington, NJ' };
 
