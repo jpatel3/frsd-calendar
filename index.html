@@ -49,7 +49,11 @@
       <button id="nav-next" type="button" aria-label="Next">›</button>
       <button id="print-btn" type="button" aria-label="Print" title="Print this view">🖨</button>
     </div>
-    <div class="range"><span id="range-label" aria-live="polite"></span><span id="weather" class="weather"></span></div>
+  </div>
+  <div class="daterow">
+    <h2 id="range-label" aria-live="polite"></h2>
+    <span id="range-tag" class="range-tag" hidden></span>
+    <span id="weather" class="weather"></span>
   </div>
   <div id="countdown" class="countdown" hidden></div>
 </header>
@@ -60,7 +64,7 @@
   <span id="status"></span>
   <a id="pdf-link" href="#" target="_blank" rel="noopener">Official district calendar (PDF)</a>
   <a id="repo-link" href="#" target="_blank" rel="noopener">Source on GitHub</a>
-  <span class="made">Made by <a href="https://x.com/jnptl" target="_blank" rel="noopener">Jaimin</a></span>
+  <span class="made">Made by <a href="https://x.com/jnptl" target="_blank" rel="noopener">Jaimin</a> · <a class="coffee" href="https://buymeacoffee.com/jpatel" target="_blank" rel="noopener">☕ Buy me a coffee</a></span>
 </footer>
 <div id="toast" class="toast" role="status"></div>
 <script type="module" src="app.js"></script>

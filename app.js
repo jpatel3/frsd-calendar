@@ -113,12 +113,27 @@ function renderChips() {
   }
 }
 
+// A short "where am I" tag beside the date, so the day never reads as just another line of text.
+function relativeTag() {
+  const today = todayStr();
+  if (state.view === 'week') {
+    const diff = Math.round((parseDate(mondayOf(state.date)) - parseDate(mondayOf(today))) / 864e5 / 7);
+    return diff === 0 ? 'This week' : diff === 1 ? 'Next week' : diff === -1 ? 'Last week' : '';
+  }
+  if (state.date === today) return 'Today';
+  if (state.date === addDays(today, 1)) return 'Tomorrow';
+  if (state.date === addDays(today, -1)) return 'Yesterday';
+  return '';
+}
+
 function renderControls() {
   for (const b of $('chips').children) b.setAttribute('aria-pressed', String(state.schools.includes(b.dataset.key)));
   $('view-today').setAttribute('aria-pressed', String(state.view === 'today'));
   $('view-week').setAttribute('aria-pressed', String(state.view === 'week'));
   $('range-label').textContent = state.view === 'today' ? fmtLong.format(parseDate(state.date))
     : (w => `${fmtShort.format(parseDate(w.monday))} – ${fmtShort.format(parseDate(w.friday))}`)(weekRange(state.date));
+  const tag = $('range-tag'), rel = relativeTag();
+  tag.textContent = rel; tag.hidden = !rel;
   $('weather').textContent = state.view === 'today' ? wx(state.date) : '';
   $('weather').title = WEATHER.label;
 }
